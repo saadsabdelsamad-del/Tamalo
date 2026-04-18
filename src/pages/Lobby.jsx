@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePlayer } from '../context/PlayerContext'
 
+const QUICK_RULES = [
+  { icon: '🎯', text: 'Lowest score wins. First to 100 loses.' },
+  { icon: '👀', text: 'Peek at 2 of your 4 cards at the start.' },
+  { icon: '🔁', text: 'Draw from deck or discard pile each turn.' },
+  { icon: '📣', text: 'Call "Tamalo!" if you think you have the lowest hand.' },
+  { icon: '⚠️', text: 'Wrong Tamalo call = +5 penalty.' },
+  { icon: '🔥', text: 'Hit exactly 99? Resets to 50.' },
+]
+
 function randomCode() {
   return Math.random().toString(36).slice(2, 6).toUpperCase()
 }
@@ -98,6 +107,21 @@ export default function Lobby() {
           </button>
         </div>
         {error && <div className="alert alert-error">{error}</div>}
+      </div>
+
+      <div className="card mt-16">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div className="card-title" style={{ margin: 0 }}>Quick Rules 📖</div>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/rules')}>Full rules →</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {QUICK_RULES.map((r, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '0.88rem' }}>
+              <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{r.icon}</span>
+              <span style={{ color: 'var(--text)', lineHeight: 1.5 }}>{r.text}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

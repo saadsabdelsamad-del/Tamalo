@@ -3,9 +3,8 @@ import { usePlayer } from '../context/PlayerContext'
 
 const links = [
   { path: '/lobby',       label: 'Play' },
-  { path: '/leaderboard', label: '🏆' },
-  { path: '/history',     label: '📜' },
-  { path: '/rules',       label: '📖' },
+  { path: '/leaderboard', label: '🏆', size: '1.3rem' },
+  { path: '/history',     label: '📜', size: '1.3rem' },
 ]
 
 export default function Navbar() {
@@ -26,6 +25,7 @@ export default function Navbar() {
             key={l.path}
             className={`nav-link${location.pathname === l.path ? ' active' : ''}`}
             onClick={() => navigate(l.path)}
+            style={l.size ? { fontSize: l.size, padding: '4px 10px' } : {}}
           >
             {l.label}
           </button>
