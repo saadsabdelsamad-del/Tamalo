@@ -57,7 +57,7 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
   const [allCards, setAllCards]     = useState({})    // {pid: [{position,card_code,revealed}]}
   const [knownCards, setKnownCards] = useState({})    // {pid: {pos: code}}
   const [tempReveal, setTempReveal] = useState(null)  // {ownerId, pos, code}
-  const [selectMode, setSelectMode] = useState(null)  // null | 'swap_mine' | 'power_mine' | 'power_their'
+  const [selectMode, setSelectMode] = useState(null)  // null | 'swap_mine' | 'power_mine' | 'power_their' | 'slapping'
   const [swapMyPos, setSwapMyPos]   = useState(null)
   const [loading, setLoading]       = useState(true)
   const [msg, setMsg]               = useState('')
@@ -206,15 +206,14 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
     await supabase.from('player_hand_cards').update({ card_code: round.drawn_card })
       .eq('game_round_id', round.id).eq('player_id', player.id).eq('position', pos)
     await upsertKnown(player.id, player.id, pos, round.drawn_card)
-    await supabase.from('player_known_cards').delete() // clear drawn slot
+    await supabase.from('player_known_cards').delete()
       .eq('game_round_id', round.id).eq('viewer_id', player.id).eq('owner_id', player.id).eq('position', -1)
     await supabase.from('game_rounds').update({
       drawn_card: null, drawn_from: null,
-      discard_pile: newDiscard, last_discard: myCard.card_code,
-      last_discard_by: player.id, slap_window: true
+      discard_pile: newDiscard, last_discard: myCard.card_code, last_discard_by: player.id
     }).eq('id', round.id)
     setSelectMode(null)
-    openSlapThenAdvance()
+    await doAdvanceTurn()
     await load()
   }
 
@@ -230,27 +229,16 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
     if (usePower && power) {
       await supabase.from('game_rounds').update({
         drawn_card: null, drawn_from: null, discard_pile: newDiscard,
-        last_discard: card, last_discard_by: player.id,
-        pending_power: power, slap_window: true
+        last_discard: card, last_discard_by: player.id, pending_power: power
       }).eq('id', round.id)
-      setTimeout(async () => {
-        await supabase.from('game_rounds').update({ slap_window: false }).eq('id', round.id)
-      }, 5000)
     } else {
       await supabase.from('game_rounds').update({
         drawn_card: null, drawn_from: null, discard_pile: newDiscard,
-        last_discard: card, last_discard_by: player.id, slap_window: true
+        last_discard: card, last_discard_by: player.id
       }).eq('id', round.id)
-      openSlapThenAdvance()
+      await doAdvanceTurn()
     }
     await load()
-  }
-
-  function openSlapThenAdvance() {
-    setTimeout(async () => {
-      await supabase.from('game_rounds').update({ slap_window: false }).eq('id', round.id)
-      await doAdvanceTurn()
-    }, 5000)
   }
 
   async function doAdvanceTurn(overrideRound) {
@@ -346,8 +334,8 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
   }
 
   async function slap(myPos) {
-    if (!round?.slap_window) return
-    if (round.last_discard_by === player.id) { flash("Can't slap your own discard!"); return }
+    if (!topDiscard) return
+    if (round.last_discard_by === player.id) { flash("Can't slap your own discard!"); setSelectMode(null); return }
     const myCard = myCards.find(c => c.position === myPos)
     if (!myCard || !topDiscard) return
 
@@ -373,6 +361,7 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
       }
       flash('❌ Wrong slap! Penalty card added.')
     }
+    setSelectMode(null)
     await load()
   }
 
@@ -462,18 +451,21 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
       {/* Flash message */}
       {msg && <div style={{ padding: '10px 16px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, textAlign: 'center', fontWeight: 600, fontSize: '0.88rem', color: '#166534' }}>{msg}</div>}
 
-      {/* Slap window */}
-      {round.slap_window && round.last_discard_by !== player.id && (
+      {/* Slap mode */}
+      {selectMode === 'slapping' && (
         <div style={{ background: '#FFF7ED', border: '2px solid #F97316', borderRadius: 12, padding: 14 }}>
           <div style={{ fontWeight: 700, color: '#EA580C', marginBottom: 10, fontSize: '0.88rem', textAlign: 'center' }}>
-            ⚡ SLAP! Do you have a {topDiscard ? cardDisplay(topDiscard).label : '?'}? Tap your card to slap.
+            ⚡ Tap your matching card to slap it!
           </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
             {myCardsSorted.map(c => (
               <div key={c.position} onClick={() => slap(c.position)}>
                 <Card code={knownCode(player.id, c.position) ?? c.card_code} known={showFace(player.id, c.position, c.revealed)} selectable />
               </div>
             ))}
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSelectMode(null)}>Cancel</button>
           </div>
         </div>
       )}
@@ -542,6 +534,18 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
               </div>
             : <div style={{ width: 58, height: 84, borderRadius: 8, border: '2px dashed #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D1D5DB', fontSize: '0.75rem' }}>Empty</div>
           }
+          {topDiscard && round.last_discard_by !== player.id && !hasDrawn && round.status !== 'peek' && (
+            <button
+              onClick={() => setSelectMode(selectMode === 'slapping' ? null : 'slapping')}
+              style={{
+                marginTop: 8, padding: '5px 12px', borderRadius: 8, border: 'none',
+                background: selectMode === 'slapping' ? '#EA580C' : '#FFF7ED',
+                color: selectMode === 'slapping' ? '#fff' : '#EA580C',
+                fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+                border: '2px solid #F97316', transition: 'all .15s'
+              }}
+            >⚡ SLAP</button>
+          )}
         </div>
       </div>
 
