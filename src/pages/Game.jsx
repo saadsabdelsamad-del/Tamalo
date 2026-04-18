@@ -42,6 +42,13 @@ export default function Game() {
     loadGame()
   }, [code])
 
+  // Poll every 4 seconds to keep all devices in sync
+  useEffect(() => {
+    if (!game?.id) return
+    const interval = setInterval(pollGameState, 4000)
+    return () => clearInterval(interval)
+  }, [game?.id])
+
   // Real-time subscriptions
   useEffect(() => {
     if (!game?.id) return
@@ -88,7 +95,24 @@ export default function Game() {
       .select('*, scores:round_scores(*, player:players(name))')
       .eq('game_id', gameId)
       .order('round_number', { ascending: false })
-    if (rounds) setHistory(rounds)
+    if (rounds) {
+      setHistory(rounds)
+      if (rounds.length > 0) {
+        setRoundNum(Math.max(...rounds.map(r => r.round_number)) + 1)
+      }
+    }
+  }
+
+  async function pollGameState() {
+    if (!game?.id) return
+    const [{ data: g }, ] = await Promise.all([
+      supabase.from('games').select('*').eq('id', game.id).single(),
+    ])
+    if (g) {
+      setGame(g)
+      if (g.status === 'finished' && !gameOver) setGameOver({ loser: g.loser_name || 'Someone' })
+    }
+    await Promise.all([loadGamePlayers(game.id), loadHistory(game.id)])
   }
 
   async function startGame() {
