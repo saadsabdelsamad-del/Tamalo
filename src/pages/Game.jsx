@@ -103,7 +103,8 @@ export default function Game() {
     try {
       // Build new scores
       let scores = gamePlayers.map(gp => {
-        const delta = parseInt(inputs[gp.player_id] || '0', 10) || 0
+        const raw = inputs[gp.player_id]
+        const delta = (raw === '' || raw == null) ? 0 : (parseInt(raw, 10) || 0)
         let total = gp.current_score + delta
         let note = null
 
@@ -146,6 +147,12 @@ export default function Game() {
           .update({ current_score: s.total })
           .eq('id', s.gp_id)
       ))
+
+      // Update local state immediately — don't wait for real-time
+      setGamePlayers(prev => prev.map(gp => {
+        const s = scores.find(sc => sc.player_id === gp.player_id)
+        return s ? { ...gp, current_score: s.total } : gp
+      }))
 
       if (loser) {
         await endGame(loser, scores)
@@ -360,7 +367,8 @@ export default function Game() {
                 <div className="round-input-name">{gp.player?.name}</div>
                 <input
                   className="score-input"
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="0"
                   value={inputs[gp.player_id] ?? ''}
                   onChange={e => setInputs(prev => ({ ...prev, [gp.player_id]: e.target.value }))}
