@@ -534,7 +534,7 @@ export default function GamePlay({ gameId, gamePlayers, onRoundScored, roundNum,
               </div>
             : <div style={{ width: 58, height: 84, borderRadius: 8, border: '2px dashed #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D1D5DB', fontSize: '0.75rem' }}>Empty</div>
           }
-          {topDiscard && round.last_discard_by !== player.id && !hasDrawn && round.status !== 'peek' && (
+          {topDiscard && round.status !== 'peek' && (
             <button
               onClick={() => setSelectMode(selectMode === 'slapping' ? null : 'slapping')}
               style={{

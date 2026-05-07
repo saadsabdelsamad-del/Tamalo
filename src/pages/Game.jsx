@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePlayer } from '../context/PlayerContext'
 import { checkAndAwardAchievements, ACHIEVEMENTS } from '../lib/achievements'
-import GamePlay from './GamePlay'
 
 function initials(name) { return name?.slice(0, 2).toUpperCase() || '?' }
 
@@ -29,6 +28,7 @@ export default function Game() {
   const [midName, setMidName]         = useState('')
   const [loading, setLoading]         = useState(true)
   const [toast, setToast]             = useState(null)
+  const [roundInputs, setRoundInputs] = useState({}) // { player_id: delta_string }
 
   const isHost    = game?.host_id === player?.id
   const isWaiting = game?.status === 'waiting'
@@ -301,16 +301,50 @@ export default function Game() {
         </div>
       )}
 
-      {/* Card game */}
-      {isActive && !isFinished && !gameOver && (
-        <div className="mb-16">
-          <GamePlay
-            gameId={game.id}
-            gamePlayers={gamePlayers}
-            onRoundScored={onRoundScored}
-            roundNum={cardRoundNum}
-            isHost={isHost}
-          />
+      {/* Manual score entry (host only) */}
+      {isActive && isHost && !isFinished && !gameOver && (
+        <div className="card mb-16">
+          <div className="card-title">Enter Round {cardRoundNum} Scores</div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 14 }}>
+            Enter each player's hand total for this round (use − for negatives).
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+            {gamePlayers.map(gp => (
+              <div key={gp.player_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, fontWeight: 600, fontSize: '0.9rem' }}>{gp.player?.name}</div>
+                <input
+                  className="input"
+                  style={{ width: 90, textAlign: 'center' }}
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={roundInputs[gp.player_id] ?? ''}
+                  onChange={e => setRoundInputs(prev => ({ ...prev, [gp.player_id]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <button
+            className="btn btn-primary btn-full"
+            onClick={() => {
+              const scores = {}
+              for (const gp of gamePlayers) {
+                const val = parseFloat(roundInputs[gp.player_id])
+                scores[gp.player_id] = isNaN(val) ? 0 : val
+              }
+              setRoundInputs({})
+              onRoundScored(scores)
+            }}
+          >
+            Submit Round
+          </button>
+        </div>
+      )}
+
+      {/* Non-host waiting message */}
+      {isActive && !isHost && !isFinished && !gameOver && (
+        <div className="card mb-16 text-center" style={{ padding: 24 }}>
+          <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>⏳</div>
+          <p style={{ fontWeight: 600, color: 'var(--muted)' }}>Waiting for host to enter scores…</p>
         </div>
       )}
 
